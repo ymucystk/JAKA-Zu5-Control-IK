@@ -1,5 +1,5 @@
 {
-  "name": "jaka-zu5-control",
+  "name": "JAKA-control",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,11 +10,12 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "aframe": "1.6",
-    "bootstrap": "^5.3.3",
-    "mqtt": "^5.10.3",
-    "next": "15.1.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "aframe": "^1.6.0",
+    "aframe-troika-text": "^0.13.0",
+    "bootstrap": "^5.3.5",
+    "mqtt": "^5.10.4",
+    "next": "15.2.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   }
 }

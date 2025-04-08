@@ -1,8 +1,17 @@
 "use client";
 import 'aframe'
 import * as React from 'react'
-import * as THREE from 'three'
+const THREE = window.AFRAME.THREE; // これで　AFRAME と　THREEを同時に使える
+
 import Controller from './controller.js'
+import { register_jtext } from '../lib/jtext.js' // 日本語表示用
+
+import { connectMQTT, mqttclient,idtopic,subscribeMQTT, publishMQTT } from '../lib/MetaworkMQTT'
+const MQTT_REQUEST_TOPIC = "mgr/request";
+const MQTT_DEVICE_TOPIC = "dev/"+idtopic;
+const MQTT_CTRL_TOPIC =        "control/"+idtopic; // 自分のIDに制御を送信
+const MQTT_ROBOT_STATE_TOPIC = "robot/"; // Viwer のばあい
+let receive_state = false // ロボットの状態を受信してるかのフラグ
 
 const joint_pos = {
   base:new THREE.Vector3(0,0,0),
@@ -52,7 +61,10 @@ export default function Home(props) {
   const [j7_rotate,set_j7_rotate] = React.useState(0) //指用
 
   const [rotate, set_rotate] = React.useState([0,0,0,0,0,0,0])  //出力用
+
   const [input_rotate, set_input_rotate] = React.useState([0,0,0,0,0,0,0])  //入力用
+
+  const rotateRef = React.useRef(rotate); // ref を使って rotate を保持する
 
   const [p11_object,set_p11_object] = React.useState()
   const [p12_object,set_p12_object] = React.useState()
@@ -73,6 +85,18 @@ export default function Home(props) {
   const [save_target,set_save_target] = React.useState()
 
   const vrModeRef = React.useRef(false); // vr_mode はref のほうが使いやすい
+  const [grip_on, set_grip_on] = React.useState(false);
+  const [grip_value, set_grip_value] = React.useState(0);
+  const gripRef = React.useRef(false);
+  const gripValueRef = React.useRef(0);
+
+  const [button_a_on, set_button_a_on] = React.useState(false);
+  const buttonaRef = React.useRef(null);
+  const [button_b_on, set_button_b_on] = React.useState(false)
+  const buttonbRef = React.useRef(null);
+  const [selectedMode, setSelectedMode] = React.useState('control'); //　モード
+  const robotIDRef = React.useRef("none"); // ロボットのIDを保持するためのref
+
 
   const [test_pos,set_test_pos] = React.useState(new THREE.Vector3())
 
@@ -96,8 +120,14 @@ export default function Home(props) {
   const [target,set_target_org] = React.useState(real_target)
   const [p15_16_len,set_p15_16_len] = React.useState(joint_pos.j7.z)
  
+  const [do_target_update, set_do_target_update] = React.useState(0) // count up for each target_update call
+
   const reqIdRef = React.useRef()
 
+  // レンダリング毎に実行させたい。。。
+  // じゃあ useEffect のデフォルト（引数なし）でOKでは？
+
+  /*
   const loop = ()=>{
     setNow(performance.now());
     reqIdRef.current = window.requestAnimationFrame(loop)
@@ -107,6 +137,7 @@ export default function Home(props) {
     loop()
     return () => window.cancelAnimationFrame(reqIdRef.current)
   },[])
+  */
 
   const set_target = (new_pos)=>{
     target_move_distance = distance(real_target,new_pos)
@@ -178,9 +209,16 @@ export default function Home(props) {
 
   React.useEffect(() => {
     if(rendered){
-      target_update(true)
+      set_do_target_update((prev) => prev + 1) // increment the counter to trigger target_update
     }
   },[rendered])
+
+  // これで、同じレンダリングタイミングでの複数の target_update を回避
+  React.useEffect(()=>{
+//    console.log("Target Update",do_target_update)
+    target_update();
+  },[do_target_update])
+
 
   const robotChange = ()=>{
     const get = (robotName)=>{
@@ -193,6 +231,7 @@ export default function Home(props) {
     set_robotName(get)
   }
 
+  // 移動をゆっくりさせる仕組み
   React.useEffect(()=>{
     for(let i=0; i<rotate_table.length; i=i+1){
       const current_table = rotate_table[i]
@@ -222,7 +261,8 @@ export default function Home(props) {
         }
       }
     }
-  }, [now])
+  }); // now は不要？
+
 
   React.useEffect(() => {
     if (rendered && object3D_table[0] !== undefined) {
@@ -279,17 +319,16 @@ export default function Home(props) {
   }, [j6_rotate])
 
   React.useEffect(() => {
-    if(!props.viewer){
       const new_rotate = [
         round(j1_rotate,3),round(j2_rotate,3),round(j3_rotate,3),
         round(j4_rotate,3),round(j5_rotate,3),round(j6_rotate,3),round(j7_rotate,3)
       ]
       set_rotate(new_rotate)
-    }
+      rotateRef.current = new_rotate
   }, [j1_rotate,j2_rotate,j3_rotate,j4_rotate,j5_rotate,j6_rotate,j7_rotate])
 
   React.useEffect(() => {
-    if (props.viewer && rendered) {
+    if (rendered) {
       const [new_j1_rot,new_j2_rot,new_j3_rot,new_j4_rot,new_j5_rot,new_j6_rot] = input_rotate
       const new_m4 = new THREE.Matrix4().multiply(
         new THREE.Matrix4().makeRotationY(toRadian(new_j1_rot)).setPosition(joint_pos.j1.x,joint_pos.j1.y,joint_pos.j1.z)
@@ -327,7 +366,7 @@ export default function Home(props) {
 
   React.useEffect(() => {
     if(rendered){
-      target_update(false)
+      set_do_target_update((prev) => prev + 1)
 
       if(p51_object)p51_object.quaternion.copy(get_j5_quaternion())
   
@@ -365,11 +404,11 @@ export default function Home(props) {
 
   React.useEffect(() => {
     if(rendered){
-      target_update(true)
+      set_do_target_update((prev) => prev + 1)
     }
   },[target,tool_rotate])
 
-  const target_update = (target_move)=>{
+  const target_update = ()=>{
     const p21_pos = get_p21_pos()
     const dir_sign1 = p21_pos.x < 0 ? -1 : 1
     const xz_vector = new THREE.Vector3(p21_pos.x,0,p21_pos.z).normalize()
@@ -391,10 +430,10 @@ export default function Home(props) {
 
     const p15_16_offset_pos = {...p21_pos}
     const new_p15_pos = {x:(target.x - p15_16_offset_pos.x),y:(target.y - p15_16_offset_pos.y),z:(target.z - p15_16_offset_pos.z)}
-    target15_update(new_p15_pos,direction,angle,target_move)
+    target15_update(new_p15_pos,direction,angle)
   }
 
-  const target15_update = (target15,wrist_direction,wrist_angle,target_move)=>{
+  const target15_update = (target15,wrist_direction,wrist_angle)=>{
     let dsp_message = ""
     const distance_center_t15 = (distance({x:0,y:0,z:0},{x:target15.x,y:0,z:target15.z}))
     const {k:kakudo_t15} = calc_side_4(distance_center_t15,joint_pos.j5.x)
@@ -618,6 +657,56 @@ export default function Home(props) {
     return {k:kakudo, t:takasa}
   }
 
+
+  // ロボット姿勢を定常的に送信 
+  const onAnimationMQTT = (time) =>{
+    if (rotateRef.current != null){
+      const robot_state_json = JSON.stringify({
+        time: time,
+        joints: rotateRef.current,
+        grip: gripRef.current
+//        trigger: [gripRef.current, buttonaRef.current, buttonbRef.current, gripValueRef.current]
+      });
+//      console.log("MQTT Robot State: ", robot_state_json)
+      publishMQTT(MQTT_ROBOT_STATE_TOPIC+idtopic , robot_state_json);
+    }else{
+//      console.log("MQTT Robot State: rotateRef is null")
+    }
+    window.requestAnimationFrame(onAnimationMQTT);
+  }
+
+
+  // XR のレンダリングフレーム毎に MQTTを呼び出したい
+  const onXRFrameMQTT = (time, frame) => {
+
+    if(props.viewer){
+      frame.session.requestAnimationFrame(onXRFrameMQTT);
+    }else{
+      if (vrModeRef.current){// VR_mode じゃなかったら呼び出さない
+        frame.session.requestAnimationFrame(onXRFrameMQTT);
+        setNow(performance.now()); // VR mode の場合は、通常の AnimationFrame が出ないので、これが必要(loop の代わり)
+        // 
+      }
+    }
+    
+    if ((mqttclient != null) && receive_state) {// 状態を受信していないと、送信しない
+
+      // MQTT 送信
+      const ctl_json = JSON.stringify({
+        time: time,
+        joints: rotateRef.current,
+        trigger: [gripRef.current, buttonaRef.current, buttonbRef.current, gripValueRef.current]
+      });
+
+      publishMQTT(MQTT_CTRL_TOPIC, ctl_json);
+    }
+
+  }
+    
+
+
+  // 毎回実施するなら, useEffect で実施する必要がある。
+  /* 以下の必要性が不明。
   React.useEffect(() => {
     if(rendered && p15_object && p16_object){
       const box15_result = getposq(p15_object)
@@ -630,7 +719,139 @@ export default function Home(props) {
 
       set_p15_16_len(distance(p15_pos,p16_pos))
     }
-  },[now])
+  }); // now は不要？
+  */
+
+
+  
+  // callback from MQTT
+  const requestRobot = (mqclient) =>{
+    // 制御対象のロボットを探索（表示された時点で実施）
+    if (props.viewer) return;// viewer はリクエストしない
+    const requestInfo = {
+      devId: idtopic, // 自分のID
+      type: "JAKA-control",  //  PiPERの実機（抽象度高く設定できてもいいかも）
+    }
+    console.log("Publish request",requestInfo)
+    publishMQTT(MQTT_REQUEST_TOPIC, JSON.stringify(requestInfo));
+  }
+
+  // MQTT の初期設定
+  // MetaworkMQTT protocol
+  // register to MQTT
+  React.useEffect(() => {
+    if (typeof window.mqttClient === 'undefined') {
+      //サブスクライブするトピックの登録
+      window.mqttClient = connectMQTT(requestRobot);
+      subscribeMQTT([
+        MQTT_DEVICE_TOPIC
+      ]);
+
+      if(props.viewer){
+        //サブスクライブ時の処理
+        window.mqttClient.on('message', (topic, message) => {
+          if (topic == MQTT_DEVICE_TOPIC){ // デバイスへの連絡用トピック
+            console.log(" MQTT Device Topic: ", message.toString());
+              // ここでは Viewer の設定を実施！
+            let data = JSON.parse(message.toString())
+            if (data.controller != undefined) {// コントローラ情報ならば！
+              robotIDRef.current = data.devId
+              subscribeMQTT([
+                "control/"+data.devId
+              ]);
+            }
+          }else if (topic == "control/"+robotIDRef.current){
+            console.log(" MQTT Control Topic: ", message.toString());
+            let data = JSON.parse(message.toString())
+            if (data.joints != undefined) {
+              // ここで角度変換をすべし！
+              console.log("Read MQTT Joints: ", data.joints)
+              set_input_rotate(data.joints) // Viwer の場合
+            }
+          }
+        })
+      }else{// not viewer 
+        //自分向けメッセージサブスクライブ処理
+        window.mqttClient.on('message', (topic, message) => {
+          if (topic === MQTT_DEVICE_TOPIC){ // デバイスへの連絡用トピック
+            let data = JSON.parse(message.toString())
+            console.log(" MQTT Device Topic: ", message.toString());
+            if (data.devId === "none") {
+              console.log("Can't find robot!")
+            }else{
+              robotIDRef.current = data.devId 
+              if (receive_state == false ){ // ロボットの姿勢を受け取るまで、スタートしない。
+                subscribeMQTT([
+                  MQTT_ROBOT_STATE_TOPIC+robotIDRef.current // ロボットの姿勢を待つ
+                ])
+              }
+            }
+          }
+          if (topic === MQTT_ROBOT_STATE_TOPIC+robotIDRef.current){ // ロボットの姿勢を受け取ったら
+            let data = JSON.parse(message.toString()) ///
+            const joints = data.joints
+            // ここで、本来は joints の安全チェックをすべき
+            if (!receive_state){
+              if(props.monitor ===undefined){  // モニターじゃなかったら
+                mqttclient.unsubscribe(MQTT_ROBOT_STATE_TOPIC+robotIDRef.current) // これでロボット姿勢の受信は終わり
+                receive_state = true;
+              }
+//              console.log("Receive joints:", joints, data)
+              // ここで角度変換をすべし！
+              set_input_rotate(joints)
+            
+              /* Toolがついてから考えよう
+              window.setTimeout(()=>{
+                // まず IK の結果を自分の位置に設定
+                // p16_objectに位置があるはず
+                if (target_p16_ref.current !== null){
+                  const obj = target_p16_ref.current
+                  const p16_pos = obj.getWorldPosition(new THREE.Vector3())
+                  const p16_quat = obj.getWorldQuaternion(new THREE.Quaternion())
+                  const p16_euler = new THREE.Euler().setFromQuaternion(p16_quat,order)
+//                  console.log("P16 ",p16_pos,p16_quat)
+
+                  // target を設定
+                  set_target_org({x:p16_pos.x,y:p16_pos.y,z:p16_pos.z})
+                  set_wrist_rot_x(round(toAngle(p16_euler.x)))
+                  set_wrist_rot_y(round(toAngle(p16_euler.y)))
+                  set_wrist_rot_z(round(toAngle(p16_euler.z)))
+
+
+                }else{
+                  console.log("P16 object is null!")
+                  receive_state = false
+                }
+                if(props.monitor === undefined){ // モニターじゃなかったら
+  
+                  publishMQTT("dev/"+robotIDRef.current, JSON.stringify({controller: "browser", devId: idtopic})) // 自分の topic を教える
+                }
+              }, 500);// 500msec 後に自分の位置を取得する
+              */
+            
+            }
+
+
+          }
+
+ 
+  
+        })
+      }
+    }
+    // 消える前にイベントを呼びたい
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+  }, [])
+
+  const handleBeforeUnload = () => {
+    if (mqttclient != undefined) {
+      publishMQTT("mgr/unregister", JSON.stringify({ devId: idtopic }));
+    }
+  }
+
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -725,13 +946,36 @@ export default function Home(props) {
             });
           }
         });
+
+        register_jtext(AFRAME);
+
         AFRAME.registerComponent('scene', {
           schema: {type: 'string', default: ''},
           init: function () {
             //this.el.enterVR();
+            if (props.viewer){// viewer は VR モードじゃなくても requestする
+              window.requestAnimationFrame(onAnimationMQTT);
+            }
+
             this.el.addEventListener('enter-vr', ()=>{
               vrModeRef.current = true;
               console.log('enter-vr')
+
+                          
+            if(!props.viewer){
+              let xrSession = this.el.renderer.xr.getSession();  
+              xrSession.requestAnimationFrame(onXRFrameMQTT);
+            }
+
+            // ここでカメラ位置を変更します
+            set_c_pos_x(0)
+            set_c_pos_y(.02)
+            set_c_pos_z(1.1)
+            set_c_deg_x(0)
+            set_c_deg_y(0)
+            set_c_deg_z(0)
+
+
             });
             this.el.addEventListener('exit-vr', ()=>{
               vrModeRef.current = false;
@@ -765,9 +1009,9 @@ export default function Home(props) {
   if(rendered){
     return (
     <>
-      <a-scene scene>
+      <a-scene scene xr-mode-ui="XRMode: ar" >
         <a-entity oculus-touch-controls="hand: right" vr-controller-right visible={`${false}`}></a-entity>
-        <a-plane position="0 0 0" rotation="-90 0 0" width="10" height="10" color={target_error?"#ff7f50":"#7BC8A4"}></a-plane>
+        <a-plane  position="0 0 0" rotation="-90 0 0" width="0.4" height="0.4" color={target_error?"#ff7f50":"#7BC8A4"} opacity="0.5"></a-plane>
         <Assets viewer={props.viewer}/>
         <Select_Robot {...robotProps}/>
         <Cursor3dp j_id="20" pos={{x:0,y:0,z:0}} visible={cursor_vis}>
@@ -798,7 +1042,7 @@ export default function Home(props) {
     );
   }else{
     return(
-      <a-scene>
+      <a-scene xr-mode-ui="XRMode: ar">
         <Assets viewer={props.viewer}/>
       </a-scene>
     )
