@@ -232,11 +232,14 @@ export default function Home(props) {
   }
 
   // 移動をゆっくりさせる仕組み
-  React.useEffect(()=>{
+  //React.useEffect(()=>{
+  const joint_slerp = () => {
+    let recursive_flg = false
     for(let i=0; i<rotate_table.length; i=i+1){
       const current_table = rotate_table[i]
       const current_object3D = object3D_table[i]
-      if(current_table.length > 0){
+      if(current_object3D !== undefined && current_table.length > 0){
+        recursive_flg = true
         const current_data = current_table[0]
         if(current_data.first){
           current_data.first = false
@@ -261,64 +264,57 @@ export default function Home(props) {
         }
       }
     }
-  }); // now は不要？
-
+    if(recursive_flg){
+      setTimeout(()=>{joint_slerp()},0)
+    }
+  }
+  //}); // now は不要？
 
   React.useEffect(() => {
-    if (rendered && object3D_table[0] !== undefined) {
-      if(rotate_table[0].length > 1){
-        rotate_table[0].pop()
-      }
-      rotate_table[0].push({rot:j1_rotate,first:true})
+    if(rotate_table[0].length > 1){
+      rotate_table[0].pop()
     }
+    rotate_table[0].push({rot:j1_rotate,first:true})
   }, [j1_rotate])
 
   React.useEffect(() => {
-    if (rendered && object3D_table[1] !== undefined) {
-      if(rotate_table[1].length > 1){
-        rotate_table[1].pop()
-      }
-      rotate_table[1].push({rot:j2_rotate,first:true})
+    if(rotate_table[1].length > 1){
+      rotate_table[1].pop()
     }
+    rotate_table[1].push({rot:j2_rotate,first:true})
   }, [j2_rotate])
 
   React.useEffect(() => {
-    if (rendered && object3D_table[2] !== undefined) {
-      if(rotate_table[2].length > 1){
-        rotate_table[2].pop()
-      }
-      rotate_table[2].push({rot:j3_rotate,first:true})
+    if(rotate_table[2].length > 1){
+      rotate_table[2].pop()
     }
+    rotate_table[2].push({rot:j3_rotate,first:true})
   }, [j3_rotate])
 
   React.useEffect(() => {
-    if (rendered && object3D_table[3] !== undefined) {
-      if(rotate_table[3].length > 1){
-        rotate_table[3].pop()
-      }
-      rotate_table[3].push({rot:j4_rotate,first:true})
+    if(rotate_table[3].length > 1){
+      rotate_table[3].pop()
     }
+    rotate_table[3].push({rot:j4_rotate,first:true})
   }, [j4_rotate])
 
   React.useEffect(() => {
-    if (rendered && object3D_table[4] !== undefined) {
-      if(rotate_table[4].length > 1){
-        rotate_table[4].pop()
-      }
-      rotate_table[4].push({rot:j5_rotate,first:true})
+    if(rotate_table[4].length > 1){
+      rotate_table[4].pop()
     }
+    rotate_table[4].push({rot:j5_rotate,first:true})
   }, [j5_rotate])
 
   React.useEffect(() => {
-    if (rendered && object3D_table[5] !== undefined) {
-      if(rotate_table[5].length > 1){
-        rotate_table[5].pop()
-      }
-      rotate_table[5].push({rot:j6_rotate,first:true})
+    if(rotate_table[5].length > 1){
+      rotate_table[5].pop()
     }
+    rotate_table[5].push({rot:j6_rotate,first:true})
   }, [j6_rotate])
 
   React.useEffect(() => {
+    setTimeout(()=>{joint_slerp()},0)
+
       const new_rotate = [
         round(j1_rotate,3),round(j2_rotate,3),round(j3_rotate,3),
         round(j4_rotate,3),round(j5_rotate,3),round(j6_rotate,3),round(j7_rotate,3)
