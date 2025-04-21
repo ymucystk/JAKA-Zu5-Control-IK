@@ -43,8 +43,11 @@ let target_move_distance = 0.2
 const target_move_speed = (1000/3)
 let real_target = {x:0.2,y:0.6,z:-0.4}
 
+const controller_object_position = new THREE.Vector3()
+const controller_object_rotation = new THREE.Euler(0,0,0,order)
+
 export default function Home(props) {
-  const [now, setNow] = React.useState(new Date())
+  //const [now, setNow] = React.useState(new Date())
   const [rendered,set_rendered] = React.useState(false)
   const robotNameList = ["Model"]
   const [robotName,set_robotName] = React.useState(robotNameList[0])
@@ -80,7 +83,6 @@ export default function Home(props) {
   const [p15_pos,set_p15_pos] = React.useState({x:0,y:0,z:0})
   const [p16_pos,set_p16_pos] = React.useState({x:0,y:0,z:0})
 
-  const [controller_object,set_controller_object] = React.useState(new THREE.Object3D())
   const [start_pos,set_start_pos] = React.useState(new THREE.Vector3())
   const [save_target,set_save_target] = React.useState()
 
@@ -107,9 +109,7 @@ export default function Home(props) {
   const [c_deg_y,set_c_deg_y] = React.useState(180)
   const [c_deg_z,set_c_deg_z] = React.useState(0)
 
-  const [wrist_rot_x,set_wrist_rot_x_org] = React.useState(180)
-  const [wrist_rot_y,set_wrist_rot_y_org] = React.useState(0)
-  const [wrist_rot_z,set_wrist_rot_z_org] = React.useState(0)
+  const [wrist_rot,set_wrist_rot_org] = React.useState({x:180,y:0,z:0})
   const [tool_rotate,set_tool_rotate] = React.useState(0)
   const [wrist_degree,set_wrist_degree] = React.useState({direction:0,angle:0})
   const [dsp_message,set_dsp_message] = React.useState("")
@@ -121,6 +121,7 @@ export default function Home(props) {
   const [p15_16_len,set_p15_16_len] = React.useState(joint_pos.j7.z)
  
   const [do_target_update, set_do_target_update] = React.useState(0) // count up for each target_update call
+  const [vrcontroller_move, set_vrcontroller_move] = React.useState(false)
 
   const reqIdRef = React.useRef()
 
@@ -144,22 +145,14 @@ export default function Home(props) {
     set_target_org(new_pos)
   }
 
-  const set_wrist_rot_x = (new_rot)=>{
+  const set_wrist_rot = (new_rot)=>{
     target_move_distance = 0
-    set_wrist_rot_x_org(new_rot)
-  }
-  const set_wrist_rot_y = (new_rot)=>{
-    target_move_distance = 0
-    set_wrist_rot_y_org(new_rot)
-  }
-  const set_wrist_rot_z = (new_rot)=>{
-    target_move_distance = 0
-    set_wrist_rot_z_org(new_rot)
+    set_wrist_rot_org({...new_rot})
   }
 
   React.useEffect(() => {
     if(rendered && vrModeRef.current && trigger_on){
-      const move_pos = pos_sub(start_pos,controller_object.position)
+      const move_pos = pos_sub(start_pos,controller_object_position)
       move_pos.x = move_pos.x/5
       move_pos.y = move_pos.y/5
       move_pos.z = move_pos.z/5
@@ -175,19 +168,19 @@ export default function Home(props) {
       }
       set_target((target_pos))
     }
-  },[controller_object.position.x,controller_object.position.y,controller_object.position.z])
+  },[controller_object_position.x,controller_object_position.y,controller_object_position.z])
 
   React.useEffect(() => {
     if(rendered && vrModeRef.current && trigger_on){
       const quat_start = new THREE.Quaternion().setFromEuler(start_rotation);
-      const quat_controller = new THREE.Quaternion().setFromEuler(controller_object.rotation);
+      const quat_controller = new THREE.Quaternion().setFromEuler(controller_object_rotation);
       const quatDifference1 = quat_start.clone().invert().multiply(quat_controller);
 
       const quat_save = new THREE.Quaternion().setFromEuler(save_rotation);
       const quatDifference2 = quat_start.clone().invert().multiply(quat_save);
 
       const wk_mtx = quat_start.clone().multiply(quatDifference1).multiply(quatDifference2)
-      current_rotation = new THREE.Euler().setFromQuaternion(wk_mtx,controller_object.rotation.order)
+      current_rotation = new THREE.Euler().setFromQuaternion(wk_mtx,controller_object_rotation.order)
 
       wk_mtx.multiply(
         new THREE.Quaternion().setFromEuler(
@@ -195,17 +188,15 @@ export default function Home(props) {
             (0.6654549523360951*-1),  //x
             Math.PI,  //y
             Math.PI,  //z
-            controller_object.rotation.order
+            controller_object_rotation.order
           )
         )
       )
 
-      const wk_euler = new THREE.Euler().setFromQuaternion(wk_mtx,controller_object.rotation.order)
-      set_wrist_rot_x(round(toAngle(wk_euler.x)))
-      set_wrist_rot_y(round(toAngle(wk_euler.y)))
-      set_wrist_rot_z(round(toAngle(wk_euler.z)))
+      const wk_euler = new THREE.Euler().setFromQuaternion(wk_mtx,controller_object_rotation.order)
+      set_wrist_rot({x:round(toAngle(wk_euler.x)),y:round(toAngle(wk_euler.y)),z:round(toAngle(wk_euler.z))})
     }
-  },[controller_object.rotation.x,controller_object.rotation.y,controller_object.rotation.z])
+  },[controller_object_rotation.x,controller_object_rotation.y,controller_object_rotation.z])
 
   React.useEffect(() => {
     if(rendered){
@@ -343,14 +334,12 @@ export default function Home(props) {
       )
       const new_target = new THREE.Vector3().applyMatrix4(new_m4)
       const w_euler = new THREE.Euler().setFromRotationMatrix(new_m4,order)
-      set_wrist_rot_x(round(toAngle(w_euler.x)))
-      set_wrist_rot_y(round(toAngle(w_euler.y)))
-      set_wrist_rot_z(round(toAngle(w_euler.z)))
+      set_wrist_rot({x:round(toAngle(w_euler.x)),y:round(toAngle(w_euler.y)),z:round(toAngle(w_euler.z))})
       set_target({x:round(new_target.x),y:round(new_target.y),z:round(new_target.z)})
     }
   }, [input_rotate[0],input_rotate[1],input_rotate[2],input_rotate[3],input_rotate[4],input_rotate[5]])
 
-  const get_j5_quaternion = (rot_x=wrist_rot_x,rot_y=wrist_rot_y,rot_z=wrist_rot_z)=>{
+  const get_j5_quaternion = (rot_x=wrist_rot.x,rot_y=wrist_rot.y,rot_z=wrist_rot.z)=>{
     return new THREE.Quaternion().setFromEuler(
       new THREE.Euler(toRadian(rot_x), toRadian(rot_y), toRadian(rot_z), order)
     )
@@ -367,7 +356,7 @@ export default function Home(props) {
       if(p51_object)p51_object.quaternion.copy(get_j5_quaternion())
   
     }
-  },[wrist_rot_x,wrist_rot_y,wrist_rot_z])
+  },[wrist_rot.x,wrist_rot.y,wrist_rot.z])
 
   const quaternionToRotation = (q,v)=>{
     return new THREE.Vector3(v.x, v.y, v.z).applyQuaternion(q);
@@ -680,7 +669,7 @@ export default function Home(props) {
     }else{
       if (vrModeRef.current){// VR_mode じゃなかったら呼び出さない
         frame.session.requestAnimationFrame(onXRFrameMQTT);
-        setNow(performance.now()); // VR mode の場合は、通常の AnimationFrame が出ないので、これが必要(loop の代わり)
+        //setNow(performance.now()); // VR mode の場合は、通常の AnimationFrame が出ないので、これが必要(loop の代わり)
         // 
       }
     }
@@ -809,9 +798,7 @@ export default function Home(props) {
 
                   // target を設定
                   set_target_org({x:p16_pos.x,y:p16_pos.y,z:p16_pos.z})
-                  set_wrist_rot_x(round(toAngle(p16_euler.x)))
-                  set_wrist_rot_y(round(toAngle(p16_euler.y)))
-                  set_wrist_rot_z(round(toAngle(p16_euler.z)))
+                  set_wrist_rot({x:round(toAngle(p16_euler.x)),y:round(toAngle(p16_euler.y)),z:round(toAngle(p16_euler.z))})
 
 
                 }else{
@@ -927,7 +914,6 @@ export default function Home(props) {
         AFRAME.registerComponent('vr-controller-right', {
           schema: {type: 'string', default: ''},
           init: function () {
-            set_controller_object(this.el.object3D)
             this.el.object3D.rotation.order = order
             this.el.addEventListener('triggerdown', (evt)=>{
               start_rotation = this.el.object3D.rotation.clone()
@@ -940,6 +926,21 @@ export default function Home(props) {
               set_save_target(undefined)
               trigger_on = false
             });
+          },
+          tick: function () {
+            let move = false
+            const obj = this.el.object3D
+            if(!controller_object_position.equals(obj.position)){
+              controller_object_position.set(obj.position.x,obj.position.y,obj.position.z)
+              move = true
+            }
+            if(!controller_object_rotation.equals(obj.rotation)){
+              controller_object_rotation.set(obj.rotation.x,obj.rotation.y,obj.rotation.z,obj.rotation.order)
+              move = true
+            }
+            if(move){
+              set_vrcontroller_move((flg)=>!flg)
+            }
           }
         });
 
@@ -993,7 +994,7 @@ export default function Home(props) {
     j4_rotate,set_j4_rotate,j5_rotate,set_j5_rotate,j6_rotate,set_j6_rotate,j7_rotate,set_j7_rotate,
     c_pos_x,set_c_pos_x,c_pos_y,set_c_pos_y,c_pos_z,set_c_pos_z,
     c_deg_x,set_c_deg_x,c_deg_y,set_c_deg_y,c_deg_z,set_c_deg_z,
-    wrist_rot_x,set_wrist_rot_x,wrist_rot_y,set_wrist_rot_y,wrist_rot_z,set_wrist_rot_z,
+    wrist_rot,set_wrist_rot,
     tool_rotate,set_tool_rotate,normalize180
   }
 
