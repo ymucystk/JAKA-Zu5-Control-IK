@@ -43,6 +43,7 @@ let target_move_distance = 0.2
 const target_move_speed = (1000/3)
 let real_target = {x:0.2,y:0.6,z:-0.4}
 
+let tickprev = 0
 const controller_object_position = new THREE.Vector3()
 const controller_object_rotation = new THREE.Euler(0,0,0,order)
 
@@ -104,9 +105,9 @@ export default function Home(props) {
 
   const [c_pos_x,set_c_pos_x] = React.useState(0)
   const [c_pos_y,set_c_pos_y] = React.useState(0.4)
-  const [c_pos_z,set_c_pos_z] = React.useState(-1.0)
+  const [c_pos_z,set_c_pos_z] = React.useState(0.8)
   const [c_deg_x,set_c_deg_x] = React.useState(0)
-  const [c_deg_y,set_c_deg_y] = React.useState(180)
+  const [c_deg_y,set_c_deg_y] = React.useState(0)
   const [c_deg_z,set_c_deg_z] = React.useState(0)
 
   const [wrist_rot,set_wrist_rot_org] = React.useState({x:180,y:0,z:0})
@@ -166,7 +167,7 @@ export default function Home(props) {
       if(target_pos.y < 0.012){
         target_pos.y = 0.012
       }
-      set_target((target_pos))
+      set_target({x:round(target_pos.x), y:round(target_pos.y), z:round(target_pos.z)})
     }
   },[controller_object_position.x,controller_object_position.y,controller_object_position.z])
 
@@ -927,19 +928,22 @@ export default function Home(props) {
               trigger_on = false
             });
           },
-          tick: function () {
-            let move = false
-            const obj = this.el.object3D
-            if(!controller_object_position.equals(obj.position)){
-              controller_object_position.set(obj.position.x,obj.position.y,obj.position.z)
-              move = true
-            }
-            if(!controller_object_rotation.equals(obj.rotation)){
-              controller_object_rotation.set(obj.rotation.x,obj.rotation.y,obj.rotation.z,obj.rotation.order)
-              move = true
-            }
-            if(move){
-              set_vrcontroller_move((flg)=>!flg)
+          tick: function (time) {
+            if((tickprev + 30) < time){
+              tickprev = time
+              let move = false
+              const obj = this.el.object3D
+              if(!controller_object_position.equals(obj.position)){
+                controller_object_position.set(obj.position.x,obj.position.y,obj.position.z)
+                move = true
+              }
+              if(!controller_object_rotation.equals(obj.rotation)){
+                controller_object_rotation.set(obj.rotation.x,obj.rotation.y,obj.rotation.z,obj.rotation.order)
+                move = true
+              }
+              if(move){
+                set_vrcontroller_move((flg)=>!flg)
+              }
             }
           }
         });
@@ -982,7 +986,7 @@ export default function Home(props) {
         });
       }
     }
-  }, [typeof window])
+  }, [])
 
   const edit_pos = (posxyz)=>`${posxyz.x} ${posxyz.y} ${posxyz.z}`
 
@@ -1039,7 +1043,7 @@ export default function Home(props) {
     );
   }else{
     return(
-      <a-scene xr-mode-ui="XRMode: ar">
+      <a-scene xr-mode-ui="XRMode: xr">
         <Assets viewer={props.viewer}/>
       </a-scene>
     )
