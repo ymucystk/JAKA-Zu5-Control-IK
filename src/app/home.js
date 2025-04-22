@@ -43,6 +43,14 @@ let target_move_distance = 0.2
 const target_move_speed = (1000/3)
 let real_target = {x:0.2,y:0.6,z:-0.4}
 
+const j1_Correct_value = 0.0
+const j2_Correct_value = 0.0
+const j3_Correct_value = 0.0
+const j4_Correct_value = 0.0
+const j5_Correct_value = 0.0
+const j6_Correct_value = 0.0
+const j7_Correct_value = 0.0
+
 let tickprev = 0
 const controller_object_position = new THREE.Vector3()
 const controller_object_rotation = new THREE.Euler(0,0,0,order)
@@ -307,29 +315,34 @@ export default function Home(props) {
   React.useEffect(() => {
     setTimeout(()=>{joint_slerp()},0)
 
-      const new_rotate = [
-        round(j1_rotate,3),round(j2_rotate,3),round(j3_rotate,3),
-        round(j4_rotate,3),round(j5_rotate,3),round(j6_rotate,3),round(j7_rotate,3)
-      ]
-      set_rotate(new_rotate)
-      rotateRef.current = new_rotate
+    const new_rotate = [
+      round(normalize180(j1_rotate+j1_Correct_value),3),
+      round(normalize180(j2_rotate+j2_Correct_value),3),
+      round(normalize180(j3_rotate+j3_Correct_value),3),
+      round(normalize180(j4_rotate+j4_Correct_value),3),
+      round(normalize180(j5_rotate+j5_Correct_value),3),
+      round(normalize180(j6_rotate+j6_Correct_value),3),
+      round(j7_rotate+j7_Correct_value,3)
+  ]
+    set_rotate(new_rotate)
+    rotateRef.current = new_rotate
   }, [j1_rotate,j2_rotate,j3_rotate,j4_rotate,j5_rotate,j6_rotate,j7_rotate])
 
   React.useEffect(() => {
     if (rendered) {
       const [new_j1_rot,new_j2_rot,new_j3_rot,new_j4_rot,new_j5_rot,new_j6_rot] = input_rotate
       const new_m4 = new THREE.Matrix4().multiply(
-        new THREE.Matrix4().makeRotationY(toRadian(new_j1_rot)).setPosition(joint_pos.j1.x,joint_pos.j1.y,joint_pos.j1.z)
+        new THREE.Matrix4().makeRotationY(toRadian(new_j1_rot-j1_Correct_value)).setPosition(joint_pos.j1.x,joint_pos.j1.y,joint_pos.j1.z)
       ).multiply(
-        new THREE.Matrix4().makeRotationX(toRadian(new_j2_rot)).setPosition(joint_pos.j2.x,joint_pos.j2.y,joint_pos.j2.z)
+        new THREE.Matrix4().makeRotationX(toRadian(new_j2_rot-j2_Correct_value)).setPosition(joint_pos.j2.x,joint_pos.j2.y,joint_pos.j2.z)
       ).multiply(
-        new THREE.Matrix4().makeRotationX(toRadian(new_j3_rot)).setPosition(joint_pos.j3.x,joint_pos.j3.y,joint_pos.j3.z)
+        new THREE.Matrix4().makeRotationX(toRadian(new_j3_rot-j3_Correct_value)).setPosition(joint_pos.j3.x,joint_pos.j3.y,joint_pos.j3.z)
       ).multiply(
-        new THREE.Matrix4().makeRotationY(toRadian(new_j4_rot)).setPosition(joint_pos.j4.x,joint_pos.j4.y,joint_pos.j4.z)
+        new THREE.Matrix4().makeRotationY(toRadian(new_j4_rot-j4_Correct_value)).setPosition(joint_pos.j4.x,joint_pos.j4.y,joint_pos.j4.z)
       ).multiply(
-        new THREE.Matrix4().makeRotationX(toRadian(new_j5_rot)).setPosition(joint_pos.j5.x,joint_pos.j5.y,joint_pos.j5.z)
+        new THREE.Matrix4().makeRotationX(toRadian(new_j5_rot-j5_Correct_value)).setPosition(joint_pos.j5.x,joint_pos.j5.y,joint_pos.j5.z)
       ).multiply(
-        new THREE.Matrix4().makeRotationZ(toRadian(new_j6_rot)).setPosition(joint_pos.j6.x,joint_pos.j6.y,joint_pos.j6.z)
+        new THREE.Matrix4().makeRotationZ(toRadian(new_j6_rot-j6_Correct_value)).setPosition(joint_pos.j6.x,joint_pos.j6.y,joint_pos.j6.z)
       ).multiply(
         new THREE.Matrix4().setPosition(joint_pos.j7.x,joint_pos.j7.y,p15_16_len)
       )
