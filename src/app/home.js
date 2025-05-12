@@ -1,7 +1,7 @@
 "use client";
 import 'aframe'
 import * as React from 'react'
-const THREE = window.AFRAME.THREE; // これで　AFRAME と　THREEを同時に使える
+const THREE = AFRAME.THREE; // これで　AFRAME と　THREEを同時に使える
 
 import Controller from './controller.js'
 import { register_jtext } from '../lib/jtext.js' // 日本語表示用
@@ -265,7 +265,8 @@ export default function Home(props) {
       }
     }
     if(raw_data > 0){
-      setTimeout(()=>{joint_slerp()},0)
+      requestAnimationFrame(joint_slerp)
+      //setTimeout(()=>{joint_slerp()},0)
     }
   }
   //}); // now は不要？
@@ -313,7 +314,8 @@ export default function Home(props) {
   }, [j6_rotate])
 
   React.useEffect(() => {
-    setTimeout(()=>{joint_slerp()},0)
+    requestAnimationFrame(joint_slerp)
+    //setTimeout(()=>{joint_slerp()},0)
 
     const new_rotate = [
       round(normalize180(j1_rotate+j1_Correct_value),3),
