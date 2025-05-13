@@ -427,7 +427,7 @@ export default function Home(props) {
       set_dsp_message("p21_pos 指定可能範囲外！")
       return
     }
-    set_wrist_degree({direction,angle})
+    set_wrist_degree({direction:round(direction),angle:round(angle)})
 
     const p15_16_offset_pos = {...p21_pos}
     const new_p15_pos = {x:(target.x - p15_16_offset_pos.x),y:(target.y - p15_16_offset_pos.y),z:(target.z - p15_16_offset_pos.z)}
@@ -1052,7 +1052,9 @@ export default function Home(props) {
       </a-scene>
       <Controller {...controllerProps}/>
       <div className="footer" >
-        <div>{`wrist_degree:{direction:${wrist_degree.direction},angle:${wrist_degree.angle}}  ${dsp_message}`}</div>
+        {`wrist_degree:{direction:${wrist_degree.direction},angle:${wrist_degree.angle}} `}
+        {`${dsp_message} `}
+        {`rotate:[ j1:${rotate[0]}, j2:${rotate[1]}, j3:${rotate[2]}, j4:${rotate[3]}, j5:${rotate[4]}, j6:${rotate[5]} ]`}
       </div>
     </>
     );
